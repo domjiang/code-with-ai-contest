@@ -7,6 +7,35 @@ import base64
 from utils import rsrp_color, approx_district
 
 st.set_page_config(page_title="5G 信号可视化看板", layout="wide")
+
+# ── Theme ──
+DARK_CSS = """
+<style>
+    .stApp { background-color: #0e1117; }
+    .stApp > header { background-color: transparent; }
+    section[data-testid="stSidebar"] > div:nth-child(1) { background-color: #1a1d24; }
+    h1, h2, h3, h4, h5, h6 { color: #f0f0f0 !important; }
+    p, li, .stMarkdown, .stText { color: #e0e0e0 !important; }
+    div[data-testid="metric-container"] { background: #1a1d24 !important; border: 1px solid #333 !important; border-radius: 8px; padding: 12px; }
+    div[data-testid="metric-container"] label { color: #aaa !important; }
+    div[data-testid="metric-container"] > div { color: #f0f0f0 !important; }
+    .stDataFrame, .stDataFrame table { background-color: #1a1d24 !important; }
+    .stDataFrame td, .stDataFrame th { color: #e0e0e0 !important; }
+    .stAlert { background-color: #1a1d24 !important; color: #e0e0e0 !important; }
+    .streamlit-expanderHeader { background-color: #1a1d24 !important; color: #f0f0f0 !important; border-radius: 6px !important; }
+    .stSelectbox > div > div, .stMultiSelect > div > div { background-color: #262730 !important; color: #e0e0e0 !important; }
+    .st-bq, .row-widget.stCheckbox label { color: #e0e0e0 !important; }
+    .stSidebar .st-bq, .stSidebar label { color: #ccc !important; }
+    .sidebar-content { color: #ccc; }
+    [data-testid="stSidebarNav"] { background-color: #1a1d24 !important; }
+</style>
+"""
+
+
+def apply_theme(theme):
+    if theme == "暗色":
+        st.markdown(DARK_CSS, unsafe_allow_html=True)
+
 st.title("📡 5G 信号可视化看板")
 st.markdown("基于 **上海 5G 路测数据** 的交互式可视化看板 — 使用左侧筛选器实时过滤数据")
 
@@ -71,6 +100,11 @@ selected_districts = st.sidebar.multiselect(
 
 map_3d = st.sidebar.checkbox("3D 地图模式 (柱高度 = 下载速率)", value=False)
 
+st.sidebar.markdown("---")
+theme = st.sidebar.selectbox("🎨 主题", ["亮色", "暗色"], index=0)
+apply_theme(theme)
+is_dark = theme == "暗色"
+
 # ── Filter data ──
 mask = (
     df["Band"].isin(selected_bands)
@@ -124,6 +158,8 @@ if not filtered.empty:
     deck = pdk.Deck(
         layers=[layer],
         initial_view_state=view_state,
+        map_provider="carto",
+        map_style="dark" if is_dark else "light",
         tooltip={
             "text": "RSRP: {RSRP_dBm} dBm\nBand: {Band}\nSINR: {SINR_dB} dB\n速率: {Download_Mbps} Mbps\n终端: {TerminalType}\n区: {District}"
         },
@@ -133,6 +169,7 @@ else:
     st.warning("当前筛选条件下没有数据，请调整筛选条件。")
 
 # ── Charts ──
+plotly_template = "plotly_dark" if is_dark else "plotly"
 col1, col2 = st.columns(2)
 
 with col1:
@@ -145,6 +182,7 @@ with col1:
         y="Count",
         color="Band",
         text_auto=True,
+        template=plotly_template,
         color_discrete_map={"n28": "#636efa", "n41": "#ef553b", "n78": "#00cc96"},
     )
     fig_band.update_layout(height=400, margin=dict(l=20, r=20, t=30, b=20))
@@ -154,7 +192,7 @@ with col2:
     st.subheader("终端类型分布")
     term_counts = filtered["TerminalType"].value_counts().reset_index()
     term_counts.columns = ["TerminalType", "Count"]
-    fig_term = px.pie(term_counts, names="TerminalType", values="Count", hole=0.4)
+    fig_term = px.pie(term_counts, names="TerminalType", values="Count", hole=0.4, template=plotly_template)
     fig_term.update_layout(height=400, margin=dict(l=20, r=20, t=30, b=20))
     st.plotly_chart(fig_term, width='stretch')
 
